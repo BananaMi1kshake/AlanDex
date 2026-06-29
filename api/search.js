@@ -5,28 +5,26 @@ export default async function handler(req, res) {
   const { q } = req.query;
   if (!q) return res.status(200).json([]);
 
-  // Community-maintained high-speed endpoint nodes
-  const mirrors = [
-    `https://consumet-api-production-e143.up.railway.app/manga/manganato/${encodeURIComponent(q)}`,
-    `https://api.consumet.org/manga/manganato/${encodeURIComponent(q)}`
-  ];
+  const domains = ['https://api.comick.io', 'https://api.comick.fun'];
 
-  for (const url of mirrors) {
+  for (const base of domains) {
     try {
-      const response = await axios.get(url, { timeout: 4000 });
-      const items = response.data?.results || [];
-
+      const response = await axios.get(`${base}/v1.0/search?q=${encodeURIComponent(q)}&limit=20`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 4000
+      });
+      
+      const items = response.data || [];
       const results = items.map(item => ({
         title: item.title || 'Unknown Title',
-        url: item.id, // Saves Manganato's unique ID (e.g., 'manga-xx123456')
-        img: item.image || ''
+        url: item.slug, // CRITICAL: Pass the text SLUG here so the chapter locator works
+        img: item.md_covers?.[0]?.b2key ? `https://meo.comick.pictures/${item.md_covers[0].b2key}` : ''
       }));
 
       return res.status(200).json(results);
     } catch (err) {
-      continue; // Seamlessly jump to the next mirror node if one lags
+      continue; 
     }
   }
-
   return res.status(200).json([]);
 }
