@@ -1,42 +1,30 @@
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const { q } = req.query;
   if (!q) return res.status(200).json([]);
 
-  try {
-    const targetUrl = `https://mangapill.com/search?q=${encodeURIComponent(q.trim())}`;
-    const response = await axios.get(targetUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-      timeout: 5000
-    });
+  const domains = ['https://api.comick.io', 'https://api.comick.fun'];
 
-    const $ = cheerio.load(response.data);
-    const results = [];
-    const seenUrls = new Set(); // Prevents duplicate card generation
+  for (const base of domains) {
+    try {
+      const response = await axios.get(`${base}/v1.0/search?q=${encodeURIComponent(q)}&limit=20`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 4000
+      });
+      
+      const items = response.data || [];
+      const results = items.map(item => ({
+        title: item.title || 'Unknown Title',
+        url: item.slug, // Sends the text slug (e.g., "one-piece")
+        img: item.md_covers?.[0]?.b2key ? `https://meo.comick.pictures/${item.md_covers[0].b2key}` : ''
+      }));
 
-    // Targets every anchor card pointing to a manga profile page
-    $('a[href^="/manga/"]').each((_, el) => {
-      const urlPath = $(el).attr('href');
-      if (seenUrls.has(urlPath)) return;
-      seenUrls.add(urlPath);
-
-      const title = $(el).find('div.line-clamp-2, .text-sm, font-bold').text().trim() || $(el).text().trim();
-      const img = $(el).find('img').attr('data-src') || $(el).find('img').attr('src') || '';
-
-      if (title && urlPath) {
-        results.push({
-          title: title,
-          url: urlPath, // Saves the relative pathway (e.g., "/manga/2/one-piece")
-          img: img
-        });
-      }
-    });
-
-    return res.status(200).json(results);
-  } catch (err) {
-    return res.status(200).json([]);
+      return res.status(200).json(results);
+    } catch (err) {
+      continue; 
+    }
   }
+  return res.status(200).json([]);
 }
