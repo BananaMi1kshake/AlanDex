@@ -2,25 +2,22 @@ import axios from 'axios';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  const { url } = req.query; // Receives the validated hid parameter cleanly
-  if (!url || url === 'error') return res.status(200).json([]);
+  const { url } = req.query; // Receives the Manganato ID
+  if (!url) return res.status(200).json([]);
 
-  const targets = [
-    `https://api.comick.fun/comic/${url}/chapters?lang=en&limit=100`,
-    `https://api.comick.dev/comic/${url}/chapters?lang=en&limit=100`
+  const mirrors = [
+    `https://consumet-api-production-e143.up.railway.app/manga/manganato/info/${url}`,
+    `https://api.consumet.org/manga/manganato/info/${url}`
   ];
 
-  for (const urlPath of targets) {
+  for (const urlPath of mirrors) {
     try {
-      const response = await axios.get(urlPath, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        timeout: 4000
-      });
+      const response = await axios.get(urlPath, { timeout: 4000 });
       const chaptersData = response.data?.chapters || [];
 
       const chapters = chaptersData.map(chap => ({
-        name: chap.chap ? `Chapter ${chap.chap}${chap.title ? ': ' + chap.title : ''}` : 'Special Chapter',
-        url: chap.hid 
+        name: chap.title || `Chapter ${chap.chapterNumber}`,
+        url: chap.id // Passes the internal unique chapter ID cleanly
       }));
 
       return res.status(200).json(chapters);
@@ -29,5 +26,5 @@ export default async function handler(req, res) {
     }
   }
 
-  return res.status(200).json([{ name: "⚠️ Chapters lagging. Tap to retry loading.", url: "error" }]);
+  return res.status(200).json([{ name: "⚠️ Connection busy. Tap to retry loading chapters.", url: "" }]);
 }
