@@ -5,25 +5,35 @@ export default async function handler(req, res) {
   const { url } = req.query; 
   if (!url) return res.status(200).json([]);
 
-  const domains = ['https://api.comick.io', 'https://api.comick.fun'];
+  const targetUrl = `https://api.comick.fun/comic/${url}/chapters?lang=en&limit=100`;
+  const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(targetUrl)}`;
 
-  for (const base of domains) {
+  try {
+    const response = await axios.get(proxyUrl, { timeout: 6000 });
+    const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    
+    const chaptersData = data?.chapters || [];
+    const chapters = chaptersData.map(chap => ({
+      name: chap.chap ? `Chapter ${chap.chap}${chap.title ? ': ' + chap.title : ''}` : 'Special Chapter',
+      url: chap.hid 
+    }));
+
+    return res.status(200).json(chapters);
+  } catch (err) {
     try {
-      const response = await axios.get(`${base}/comic/${url}/chapters?lang=en&limit=100`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        timeout: 4000
-      });
+      const backupUrl = `https://api.comick.io/comic/${url}/chapters?lang=en&limit=100`;
+      const backupProxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(backupUrl)}`;
+      const response = await axios.get(backupProxyUrl, { timeout: 6000 });
+      const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
       
-      const chaptersData = response.data?.chapters || [];
+      const chaptersData = data?.chapters || [];
       const chapters = chaptersData.map(chap => ({
         name: chap.chap ? `Chapter ${chap.chap}${chap.title ? ': ' + chap.title : ''}` : 'Special Chapter',
-        url: chap.hid // Sends the unique alpha-numeric chapter token
+        url: chap.hid 
       }));
-
       return res.status(200).json(chapters);
-    } catch (err) {
-      continue;
+    } catch (backupErr) {
+      return res.status(200).json([]);
     }
   }
-  return res.status(200).json([]);
 }
