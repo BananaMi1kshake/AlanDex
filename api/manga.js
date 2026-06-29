@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  const { url } = req.query; 
+  const { url } = req.query; // Receives the validated hid parameter cleanly
   if (!url || url === 'error') return res.status(200).json([]);
 
   const targets = [
@@ -12,7 +12,10 @@ export default async function handler(req, res) {
 
   for (const urlPath of targets) {
     try {
-      const response = await axios.get(urlPath, { timeout: 3000 });
+      const response = await axios.get(urlPath, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 4000
+      });
       const chaptersData = response.data?.chapters || [];
 
       const chapters = chaptersData.map(chap => ({
