@@ -1,33 +1,35 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
-  // Enforce global CORS compliance for your frontend
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  
   const { q } = req.query;
-  if (!q) return res.status(200).json([]);
+  if (!q) return res.status(200).json({ status: "Missing search keyword" });
 
   try {
-    // Connect directly to the cluster using structural browser camouflage
     const response = await axios.get(`https://api.comick.fun/v1.0/search?q=${encodeURIComponent(q)}&limit=20`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://comick.fun/',
-        'Origin': 'https://comick.fun'
+        'Referer': 'https://comick.fun/'
       },
-      timeout: 4000
+      timeout: 5000
     });
     
-    const items = response.data || [];
-    const results = items.map(item => ({
-      title: item.title || 'Unknown Title',
-      url: item.hid, // Pass the unique numeric HID down the pipe
-      img: item.md_covers?.[0]?.b2key ? `https://meo.comick.pictures/${item.md_covers[0].b2key}` : ''
-    }));
+    // If successful, show us the structure of the data returning from ComicK
+    return res.status(200).json({
+      status: "Connection Successful",
+      dataType: typeof response.data,
+      isArray: Array.isArray(response.data),
+      rawData: response.data
+    });
 
-    return res.status(200).json(results);
   } catch (err) {
-    return res.status(200).json([]);
+    // If it fails, capture the exact blocking signature and pass it to the frontend
+    return res.status(200).json({
+      status: "Connection Failed",
+      errorMessage: err.message,
+      errorCode: err.code,
+      httpStatus: err.response?.status || "No HTTP Status Available",
+      cloudflareBlock: err.message.includes('403') || err.response?.status === 403
+    });
   }
 }
