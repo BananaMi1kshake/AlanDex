@@ -1,28 +1,30 @@
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const { url } = req.query; 
   if (!url || url === 'error') return res.status(200).json([]);
 
-  try {
-    const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`;
-    const response = await axios.get(proxyUrl, { timeout: 6000 });
-    const html = response.data;
+  const targets = [
+    `https://api.comick.fun/comic/${url}/chapters?lang=en&limit=100`,
+    `https://api.comick.dev/comic/${url}/chapters?lang=en&limit=100`
+  ];
 
-    const $ = cheerio.load(html);
-    const chapters = [];
+  for (const urlPath of targets) {
+    try {
+      const response = await axios.get(urlPath, { timeout: 3000 });
+      const chaptersData = response.data?.chapters || [];
 
-    $('.chapter-name').each((_, el) => {
-      chapters.push({
-        name: $(el).text().trim(),
-        url: $(el).attr('href')
-      });
-    });
+      const chapters = chaptersData.map(chap => ({
+        name: chap.chap ? `Chapter ${chap.chap}${chap.title ? ': ' + chap.title : ''}` : 'Special Chapter',
+        url: chap.hid 
+      }));
 
-    return res.status(200).json(chapters);
-  } catch (err) {
-    return res.status(200).json([{ name: "⚠️ Connection lagged. Tap to try reloading chapters.", url: "error" }]);
+      return res.status(200).json(chapters);
+    } catch (err) {
+      continue;
+    }
   }
+
+  return res.status(200).json([{ name: "⚠️ Chapters lagging. Tap to retry loading.", url: "error" }]);
 }
