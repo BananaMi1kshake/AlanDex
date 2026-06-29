@@ -6,11 +6,11 @@ export default async function handler(req, res) {
   if (!url) return res.status(200).json([]);
 
   const targetUrl = `https://api.comick.fun/comic/${url}/chapters?lang=en&limit=100`;
-  const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(targetUrl)}`;
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
   try {
-    const response = await axios.get(proxyUrl, { timeout: 6000 });
-    const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    const response = await axios.get(proxyUrl, { timeout: 5000 });
+    const data = response.data;
     
     const chaptersData = data?.chapters || [];
     const chapters = chaptersData.map(chap => ({
@@ -20,11 +20,12 @@ export default async function handler(req, res) {
 
     return res.status(200).json(chapters);
   } catch (err) {
+    console.error("MANGA CHAPTERS PRIMARY FAILED:", err.message);
     try {
       const backupUrl = `https://api.comick.io/comic/${url}/chapters?lang=en&limit=100`;
-      const backupProxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(backupUrl)}`;
-      const response = await axios.get(backupProxyUrl, { timeout: 6000 });
-      const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+      const backupProxyUrl = `https://corsproxy.io/?${encodeURIComponent(backupUrl)}`;
+      const response = await axios.get(backupProxyUrl, { timeout: 5000 });
+      const data = response.data;
       
       const chaptersData = data?.chapters || [];
       const chapters = chaptersData.map(chap => ({
@@ -33,6 +34,7 @@ export default async function handler(req, res) {
       }));
       return res.status(200).json(chapters);
     } catch (backupErr) {
+      console.error("MANGA CHAPTERS BACKUP FAILED:", backupErr.message);
       return res.status(200).json([]);
     }
   }
