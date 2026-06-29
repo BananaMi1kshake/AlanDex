@@ -8,25 +8,33 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen font-sans" 
-      x-data="{ query: '', results: [], chapters: [], pages: [], view: 'search', loading: false }">
+      x-data="{ 
+        query: '', 
+        results: [], 
+        chapters: [], 
+        pages: [], 
+        view: 'search', 
+        loading: false,
+        workerUrl: 'https://manga.alandostanov.workers.dev/?url=' 
+      }">
 
     <div class="max-w-4xl mx-auto p-4">
         <div x-show="view === 'search'">
             <h1 class="text-4xl font-extrabold text-center my-8 text-blue-500">📖 OpenManga Edge</h1>
             <div class="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-800 shadow-xl">
-                <input x-model="query" @keyup.enter="loading = true; res = await fetch(`/api/search?q=${encodeURIComponent(query)}`); results = await res.json(); loading = false;" 
-                       class="flex-1 bg-transparent px-4 py-2 outline-none text-lg" placeholder="Type manga name (e.g., One Piece)...">
-                <button @click="loading = true; res = await fetch(`/api/search?q=${encodeURIComponent(query)}`); results = await res.json(); loading = false;" 
+                <input x-model="query" @keyup.enter="loading = true; results = await searchManga(query, workerUrl); loading = false;" 
+                       class="flex-1 bg-transparent px-4 py-2 outline-none text-lg" placeholder="Search manga (e.g., One Piece)...">
+                <button @click="loading = true; results = await searchManga(query, workerUrl); loading = false;" 
                         class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md font-bold transition">Search</button>
             </div>
 
-            <div x-show="loading" class="text-center text-blue-400 font-bold mt-12 animate-pulse">Running edge queries...</div>
+            <div x-show="loading" class="text-center text-blue-400 font-bold mt-12 animate-pulse">Streaming data vectors through trusted tunnel...</div>
 
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-8">
                 <template x-for="manga in results">
-                    <div @click="loading = true; res = await fetch(`/api/manga?url=${encodeURIComponent(manga.url)}`); chapters = await res.json(); loading = false; view = 'chapters';" 
+                    <div @click="loading = true; chapters = await getChapters(manga.url, workerUrl); loading = false; view = 'chapters';" 
                          class="bg-gray-900 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition duration-200 border border-gray-800 shadow-md">
-                        <img :src="`/api/proxy?src=${encodeURIComponent(manga.img)}`" class="w-full h-64 object-cover" onerror="this.src='https://placehold.co/400x600?text=No+Cover'">
+                        <img :src="workerUrl + encodeURIComponent(manga.img)" class="w-full h-64 object-cover" onerror="this.src='https://placehold.co/400x600?text=No+Cover'">
                         <p class="p-3 text-sm font-bold text-center truncate" x-text="manga.title"></p>
                     </div>
                 </template>
@@ -35,10 +43,10 @@
 
         <div x-show="view === 'chapters'" style="display: none;">
             <button @click="view = 'search'" class="text-blue-400 font-bold mb-6 block hover:underline">← Back to Search</button>
-            <div x-show="loading" class="text-center text-blue-400 font-bold mb-4">Unpacking chapter list...</div>
+            <div x-show="loading" class="text-center text-blue-400 font-bold mb-4">Parsing chapter matrix index...</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <template x-for="chap in chapters">
-                    <button @click="loading = true; res = await fetch(`/api/chapter?url=${encodeURIComponent(chap.url)}`); pages = await res.json(); loading = false; view = 'reader'; window.scrollTo(0,0);" 
+                    <button @click="loading = true; pages = await getPages(chap.url, workerUrl); loading = false; view = 'reader'; window.scrollTo(0,0);" 
                             class="p-3 bg-gray-900 rounded-lg text-left hover:bg-gray-800 transition border border-gray-800 truncate" x-text="chap.name"></button>
                 </template>
             </div>
@@ -48,11 +56,83 @@
             <button @click="view = 'chapters'" class="text-blue-400 font-bold mb-6 block hover:underline">← Back to Chapters</button>
             <div class="flex flex-col bg-black rounded-lg overflow-hidden shadow-2xl">
                 <template x-for="page in pages">
-                    <img :src="`/api/proxy?src=${encodeURIComponent(page)}`" class="w-full h-auto block" loading="lazy" onerror="this.style.display='none'">
+                    <img :src="workerUrl + encodeURIComponent(page)" class="w-full h-auto block" loading="lazy">
                 </template>
             </div>
         </div>
     </div>
 
+    <script>
+        // Core browser tool that downloads HTML code via your Cloudflare worker
+        async function fetchHtmlDoc(targetUrl, workerUrl) {
+            try {
+                const response = await fetch(workerUrl + encodeURIComponent(targetUrl));
+                if (!response.ok) return null;
+                const htmlText = await response.text();
+                // Converts raw string layout into interactive DOM elements
+                return new DOMParser().parseFromString(htmlText, 'text/html');
+            } catch (e) {
+                console.error("Tunnel error:", e);
+                return null;
+            }
+        }
+
+        async function searchManga(query, workerUrl) {
+            if (!query) return [];
+            const doc = await fetchHtmlDoc(`https://mangapill.com/search?q=${encodeURIComponent(query.trim())}`, workerUrl);
+            if (!doc) return [];
+
+            const results = [];
+            const cards = doc.querySelectorAll('a[href^="/manga/"]');
+            const seenUrls = new Set();
+
+            cards.forEach(card => {
+                const urlPath = card.getAttribute('href');
+                if (seenUrls.has(urlPath)) return;
+                seenUrls.add(urlPath);
+
+                const titleEl = card.querySelector('div.line-clamp-2, .text-sm, .font-bold');
+                const title = titleEl ? titleEl.textContent.trim() : card.textContent.trim();
+                const imgEl = card.querySelector('img');
+                const img = imgEl ? (imgEl.getAttribute('data-src') || imgEl.getAttribute('src') || '') : '';
+
+                if (title && urlPath) {
+                    results.push({ title, url: urlPath, img });
+                }
+            });
+            return results;
+        }
+
+        async function getChapters(mangaUrl, workerUrl) {
+            const doc = await fetchHtmlDoc(`https://mangapill.com${mangaUrl}`, workerUrl);
+            if (!doc) return [];
+
+            const chapters = [];
+            const lists = doc.querySelectorAll('a[href^="/chapters/"]');
+            lists.forEach(link => {
+                chapters.push({
+                    name: link.textContent.trim(),
+                    url: link.getAttribute('href')
+                });
+            });
+            return chapters;
+        }
+
+        async function getPages(chapterUrl, workerUrl) {
+            const doc = await fetchHtmlDoc(`https://mangapill.com${chapterUrl}`, workerUrl);
+            if (!doc) return [];
+
+            const pages = [];
+            const components = doc.querySelectorAll('img');
+            components.forEach(img => {
+                const src = img.getAttribute('data-src') || img.getAttribute('src');
+                // Filter elements to ensure only reading pages are delivered
+                if (src && (src.includes('cdn') || src.includes('mangapill')) && !src.includes('logo')) {
+                    pages.push(src);
+                }
+            });
+            return pages;
+        }
+    </script>
 </body>
 </html>
