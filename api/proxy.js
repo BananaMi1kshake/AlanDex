@@ -1,24 +1,24 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   const { src } = req.query;
-  if (!src) return res.status(400).send('Missing source identifier');
+  if (!src) return res.status(400).send('Missing src');
 
   try {
     const decodedUrl = decodeURIComponent(src);
-    
     const response = await axios.get(decodedUrl, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://comick.io/' // Emulates the official browser layout signature
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Referer': 'https://comick.io/'
       }
     });
 
     res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache locally for fast loading
+    res.setHeader('Cache-Control', 'public, max-age=86400'); 
     return res.send(response.data);
   } catch (e) {
-    return res.status(500).send('Asset streaming failed');
+    return res.status(500).send('Image failed to load');
   }
 }
