@@ -1,22 +1,17 @@
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  const { url } = req.query;
-  if (!url) return res.status(400).json({ error: 'URL missing' });
+  const { url } = req.query; // Receives the unique slug string
+  if (!url) return res.status(400).json({ error: 'Manga identifier missing' });
 
   try {
-    const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const $ = cheerio.load(data);
-    const chapters = [];
-
-    $('.chapter-name').each((_, el) => {
-      chapters.push({
-        name: $(el).text().trim(),
-        url: $(el).attr('href')
-      });
-    });
+    const { data } = await axios.get(`https://api.comick.io/comic/${url}/chapters?lang=en`);
+    
+    const chapters = data.chapters.map(chap => ({
+      name: chap.chap ? `Chapter ${chap.chap}${chap.title ? ': ' + chap.title : ''}` : 'Special Chapter',
+      url: chap.hid // Emits the unique layout ID required to unpack pages
+    }));
 
     return res.status(200).json(chapters);
   } catch (err) {
