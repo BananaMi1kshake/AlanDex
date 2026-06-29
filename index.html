@@ -3,42 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Streamline Manga</title>
+    <title>OpenManga Edge</title>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen font-sans" x-data="{ query: '', results: [], chapters: [], pages: [], view: 'search', loading: false }">
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans" 
+      x-data="{ query: '', results: [], chapters: [], pages: [], view: 'search', loading: false }">
 
     <div class="max-w-4xl mx-auto p-4">
         <div x-show="view === 'search'">
             <h1 class="text-4xl font-extrabold text-center my-8 text-blue-500">📖 OpenManga Edge</h1>
             <div class="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-800 shadow-xl">
-                <input x-model="query" @keyup.enter="
-                    loading = true;
-                    res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-                    results = await res.json();
-                    loading = false;
-                " class="flex-1 bg-transparent px-4 py-2 outline-none text-lg" placeholder="Type manga name (e.g., One Piece)...">
-                <button @click="
-                    loading = true;
-                    res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-                    results = await res.json();
-                    loading = false;
-                " class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md font-bold transition">Search</button>
+                <input x-model="query" @keyup.enter="loading = true; results = await searchManga(query); loading = false;" 
+                       class="flex-1 bg-transparent px-4 py-2 outline-none text-lg" placeholder="Search manga (e.g., One Piece)...">
+                <button @click="loading = true; results = await searchManga(query); loading = false;" 
+                        class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md font-bold transition">Search</button>
             </div>
 
-            <div x-show="loading" class="text-center text-blue-400 font-bold mt-12">Fetching from edge servers...</div>
+            <div x-show="loading" class="text-center text-blue-400 font-bold mt-12 animate-pulse">Loading data streams from edge...</div>
 
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-8">
                 <template x-for="manga in results">
-                    <div @click="
-                        loading = true;
-                        res = await fetch(`/api/manga?url=${encodeURIComponent(manga.url)}`);
-                        chapters = await res.json();
-                        loading = false;
-                        view = 'chapters';
-                    " class="bg-gray-900 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition duration-200 border border-gray-800 shadow-md">
-                        <img :src="`/api/proxy?src=${encodeURIComponent(manga.img)}`" class="w-full h-64 object-cover">
+                    <div @click="loading = true; chapters = await getChapters(manga.url); loading = false; view = 'chapters';" 
+                         class="bg-gray-900 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition duration-200 border border-gray-800 shadow-md">
+                        <img :src="manga.img" class="w-full h-64 object-cover" onerror="this.src='https://placehold.co/400x600?text=No+Cover'">
                         <p class="p-3 text-sm font-bold text-center truncate" x-text="manga.title"></p>
                     </div>
                 </template>
@@ -47,17 +35,11 @@
 
         <div x-show="view === 'chapters'" style="display: none;">
             <button @click="view = 'search'" class="text-blue-400 font-bold mb-6 block hover:underline">← Back to Search</button>
-            <div x-show="loading" class="text-center text-blue-400 font-bold">Loading layout streams...</div>
+            <div x-show="loading" class="text-center text-blue-400 font-bold mb-4">Loading chapter list...</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <template x-for="chap in chapters">
-                    <button @click="
-                        loading = true;
-                        res = await fetch(`/api/chapter?url=${encodeURIComponent(chap.url)}`);
-                        pages = await res.json();
-                        loading = false;
-                        view = 'reader';
-                        window.scrollTo(0,0);
-                    " class="p-3 bg-gray-900 rounded-lg text-left hover:bg-gray-800 transition border border-gray-800 truncate" x-text="chap.name"></button>
+                    <button @click="loading = true; pages = await getPages(chap.url); loading = false; view = 'reader'; window.scrollTo(0,0);" 
+                            class="p-3 bg-gray-900 rounded-lg text-left hover:bg-gray-800 transition border border-gray-800 truncate" x-text="chap.name"></button>
                 </template>
             </div>
         </div>
@@ -66,11 +48,52 @@
             <button @click="view = 'chapters'" class="text-blue-400 font-bold mb-6 block hover:underline">← Back to Chapters</button>
             <div class="flex flex-col bg-black rounded-lg overflow-hidden shadow-2xl">
                 <template x-for="page in pages">
-                    <img :src="`/api/proxy?src=${encodeURIComponent(page)}`" class="w-full h-auto block" loading="lazy">
+                    <img :src="page" class="w-full h-auto block" loading="lazy" onerror="this.style.display='none'">
                 </template>
             </div>
         </div>
     </div>
 
+    <script>
+        // Centralized fetch tool that obeys CORSProxy's browser rules
+        async function fetchJson(targetUrl) {
+            try {
+                // Primary Option: Free Client-Side CorsProxy
+                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
+                if (!res.ok) throw new Error("Primary proxy blocked");
+                return await res.json();
+            } catch (err) {
+                console.warn("Switching to fallback cluster node...");
+                // Backup Option: AllOrigins Proxy Core
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            }
+        }
+
+        async function searchManga(query) {
+            if (!query) return [];
+            const data = await fetchJson(`https://api.comick.fun/v1.0/search?q=${encodeURIComponent(query)}&limit=20`);
+            return (data || []).map(item => ({
+                title: item.title || 'Unknown Title',
+                url: item.slug,
+                img: item.md_covers?.[0]?.b2key ? `/api/proxy?src=${encodeURIComponent('https://meo.comick.pictures/' + item.md_covers[0].b2key)}` : ''
+            }));
+        }
+
+        async function getChapters(slug) {
+            const data = await fetchJson(`https://api.comick.fun/comic/${slug}/chapters?lang=en&limit=100`);
+            return (data?.chapters || []).map(chap => ({
+                name: chap.chap ? `Chapter ${chap.chap}${chap.title ? ': ' + chap.title : ''}` : 'Special Chapter',
+                url: chap.hid
+            }));
+        }
+
+        async function getPages(hid) {
+            const data = await fetchJson(`https://api.comick.fun/chapter/${hid}`);
+            const images = data?.chapter?.md_images || [];
+            return images.map(img => `/api/proxy?src=${encodeURIComponent('https://meo.comick.pictures/' + img.b2key)}`);
+        }
+    </script>
 </body>
 </html>
