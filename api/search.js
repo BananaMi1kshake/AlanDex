@@ -8,26 +8,34 @@ export default async function handler(req, res) {
 
   try {
     const targetUrl = `https://manganato.com/search/story/${q.trim().replace(/\s+/g, '_')}`;
-    // Route the request through the free AllOrigins proxy bridge
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    // Route traffic through the high-speed CodeTabs proxy core
+    const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(targetUrl)}`;
     
-    const response = await axios.get(proxyUrl);
-    const html = response.data.contents; // AllOrigins wraps the HTML inside a 'contents' key
+    // Enforce an internal threshold so Vercel never kills our process
+    const response = await axios.get(proxyUrl, { timeout: 6000 });
+    const html = response.data; // CodeTabs transmits raw HTML directly
 
     const $ = cheerio.load(html);
     const results = [];
 
     $('.search-story-item').each((_, el) => {
       const titleEl = $(el).find('.item-title');
-      results.push({
-        title: titleEl.text().trim(),
-        url: titleEl.attr('href'), // Passes the full Manganato URL as the identifier
-        img: $(el).find('img').attr('src')
-      });
+      if (titleEl.length) {
+        results.push({
+          title: titleEl.text().trim(),
+          url: titleEl.attr('href'), 
+          img: $(el).find('img').attr('src')
+        });
+      }
     });
 
     return res.status(200).json(results);
   } catch (err) {
-    return res.status(200).json([]); // Fallback to an empty array to prevent layout errors
+    // Graceful error state: returns an actionable card instead of a blank screen
+    return res.status(200).json([{
+      title: "⚠️ Search Timed Out. Please click to retry.",
+      url: "error",
+      img: ""
+    }]);
   }
 }
