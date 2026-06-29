@@ -15,12 +15,12 @@
             <h1 class="text-4xl font-extrabold text-center my-8 text-blue-500">📖 OpenManga Edge</h1>
             <div class="flex gap-2 bg-gray-900 p-2 rounded-lg border border-gray-800 shadow-xl">
                 <input x-model="query" @keyup.enter="loading = true; res = await fetch(`/api/search?q=${encodeURIComponent(query)}`); results = await res.json(); loading = false;" 
-                       class="flex-1 bg-transparent px-4 py-2 outline-none text-lg" placeholder="Search manga (e.g., One Piece)...">
+                       class="flex-1 bg-transparent px-4 py-2 outline-none text-lg" placeholder="Type manga name (e.g., One Piece)...">
                 <button @click="loading = true; res = await fetch(`/api/search?q=${encodeURIComponent(query)}`); results = await res.json(); loading = false;" 
                         class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md font-bold transition">Search</button>
             </div>
 
-            <div x-show="loading" class="text-center text-blue-400 font-bold mt-12 animate-pulse">Loading data streams from edge...</div>
+            <div x-show="loading" class="text-center text-blue-400 font-bold mt-12 animate-pulse">Running edge queries...</div>
 
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-8">
                 <template x-for="manga in results">
@@ -35,7 +35,7 @@
 
         <div x-show="view === 'chapters'" style="display: none;">
             <button @click="view = 'search'" class="text-blue-400 font-bold mb-6 block hover:underline">← Back to Search</button>
-            <div x-show="loading" class="text-center text-blue-400 font-bold mb-4">Loading chapter list...</div>
+            <div x-show="loading" class="text-center text-blue-400 font-bold mb-4">Unpacking chapter list...</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <template x-for="chap in chapters">
                     <button @click="loading = true; res = await fetch(`/api/chapter?url=${encodeURIComponent(chap.url)}`); pages = await res.json(); loading = false; view = 'reader'; window.scrollTo(0,0);" 
@@ -48,7 +48,7 @@
             <button @click="view = 'chapters'" class="text-blue-400 font-bold mb-6 block hover:underline">← Back to Chapters</button>
             <div class="flex flex-col bg-black rounded-lg overflow-hidden shadow-2xl">
                 <template x-for="page in pages">
-                    <img :src="`/api/proxy?src=${encodeURIComponent(page)}`" class="w-full h-auto block" loading="lazy">
+                    <img :src="`/api/proxy?src=${encodeURIComponent(page)}`" class="w-full h-auto block" loading="lazy" onerror="this.style.display='none'">
                 </template>
             </div>
         </div>
