@@ -4,12 +4,12 @@ import * as cheerio from 'cheerio';
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const { url } = req.query; 
-  if (!url) return res.status(200).json([]);
+  if (!url || url === 'error') return res.status(200).json([]);
 
   try {
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const response = await axios.get(proxyUrl);
-    const html = response.data.contents;
+    const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`;
+    const response = await axios.get(proxyUrl, { timeout: 6000 });
+    const html = response.data;
 
     const $ = cheerio.load(html);
     const chapters = [];
@@ -23,6 +23,6 @@ export default async function handler(req, res) {
 
     return res.status(200).json(chapters);
   } catch (err) {
-    return res.status(200).json([]);
+    return res.status(200).json([{ name: "⚠️ Connection lagged. Tap to try reloading chapters.", url: "error" }]);
   }
 }
