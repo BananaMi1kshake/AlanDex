@@ -1,5 +1,4 @@
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,21 +6,15 @@ export default async function handler(req, res) {
   if (!q) return res.status(400).json({ error: 'Query missing' });
 
   try {
-    const targetUrl = `https://manganato.com/search/story/${q.trim().replace(/\s+/g, '_')}`;
-    const { data } = await axios.get(targetUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    });
-
-    const $ = cheerio.load(data);
-    const results = [];
-
-    $('.search-story-item').each((_, el) => {
-      results.push({
-        title: $(el).find('.item-title').text().trim(),
-        url: $(el).find('.item-title').attr('href'),
-        img: $(el).find('img').attr('src')
-      });
-    });
+    // Fetch data directly from ComicK's open JSON endpoint
+    const { data } = await axios.get(`https://api.comick.io/v1.0/search?q=${encodeURIComponent(q)}`);
+    
+    // Map the properties to match your index.html layout exactly
+    const results = data.map(item => ({
+      title: item.title,
+      url: item.slug, // Uses the unique text slug as the routing identifier
+      img: item.md_covers?.[0]?.b2c ? `https://meo.comick.pictures/${item.md_covers[0].b2c}` : ''
+    }));
 
     return res.status(200).json(results);
   } catch (err) {
