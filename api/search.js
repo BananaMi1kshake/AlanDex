@@ -6,12 +6,12 @@ export default async function handler(req, res) {
   if (!q) return res.status(200).json([]);
 
   const targetUrl = `https://api.comick.fun/v1.0/search?q=${encodeURIComponent(q)}&limit=20`;
-  const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(targetUrl)}`;
+  // Switching to the faster corsproxy.io network
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
   try {
-    const response = await axios.get(proxyUrl, { timeout: 6000 });
-    // Safely parse the proxy string response into clean JSON data
-    const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    const response = await axios.get(proxyUrl, { timeout: 5000 });
+    const data = response.data;
     
     const items = data || [];
     const results = items.map(item => ({
@@ -22,12 +22,14 @@ export default async function handler(req, res) {
 
     return res.status(200).json(results);
   } catch (err) {
-    // Failover backup network mirror if the primary link experiences lag
+    // DIAGNOSTIC LOG: This prints the exact reason for failure to your Vercel console
+    console.error("SEARCH PRIMARY FAILED:", err.message, err.response?.data);
+
     try {
       const backupUrl = `https://api.comick.io/v1.0/search?q=${encodeURIComponent(q)}&limit=20`;
-      const backupProxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(backupUrl)}`;
-      const response = await axios.get(backupProxyUrl, { timeout: 6000 });
-      const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+      const backupProxyUrl = `https://corsproxy.io/?${encodeURIComponent(backupUrl)}`;
+      const response = await axios.get(backupProxyUrl, { timeout: 5000 });
+      const data = response.data;
       
       const items = data || [];
       const results = items.map(item => ({
@@ -37,6 +39,7 @@ export default async function handler(req, res) {
       }));
       return res.status(200).json(results);
     } catch (backupErr) {
+      console.error("SEARCH BACKUP FAILED:", backupErr.message);
       return res.status(200).json([]);
     }
   }
